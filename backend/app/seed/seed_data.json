@@ -1,11 +1,10 @@
 {
-  "_notes": "DRAFT. Day assignments are a proposal for the group to confirm. Angle ranges are empty until the Pose Analysis/Scoring Lead derives them from reference recordings; tadasana values are provisional starting points only. Joint names follow the reference_angle_contract.json convention.",
+  "_notes": "Day sequences mirror the mobile app's seven-day beginner program. Pose names remain stable backend/scoring identifiers; client_id maps each pose to its mobile-app identifier.",
   "poses": [
     {
       "pose_name": "tadasana",
+      "client_id": "mountain",
       "display_name": "Mountain Pose",
-      "day_number": 1,
-      "order_in_day": 1,
       "reference_angles": [
         { "joint_name": "left_hip_knee_ankle", "min_angle": 168, "max_angle": 180, "tolerance_deg": 5 },
         { "joint_name": "right_hip_knee_ankle", "min_angle": 168, "max_angle": 180, "tolerance_deg": 5 },
@@ -13,12 +12,21 @@
         { "joint_name": "right_shoulder_hip_knee", "min_angle": 170, "max_angle": 180, "tolerance_deg": 5 }
       ]
     },
-    { "pose_name": "utkatasana", "display_name": "Chair Pose", "day_number": 2, "order_in_day": 1, "reference_angles": [] },
-    { "pose_name": "virabhadrasana_ii", "display_name": "Warrior II", "day_number": 3, "order_in_day": 1, "reference_angles": [] },
-    { "pose_name": "vrikshasana", "display_name": "Tree Pose", "day_number": 4, "order_in_day": 1, "reference_angles": [] },
-    { "pose_name": "trikonasana", "display_name": "Triangle Pose", "day_number": 5, "order_in_day": 1, "reference_angles": [] },
-    { "pose_name": "adho_mukha_svanasana", "display_name": "Downward Dog", "day_number": 6, "order_in_day": 1, "reference_angles": [] },
-    { "pose_name": "bhujangasana", "display_name": "Cobra Pose", "day_number": 7, "order_in_day": 1, "reference_angles": [] },
-    { "pose_name": "balasana", "display_name": "Child's Pose", "day_number": 7, "order_in_day": 2, "reference_angles": [] }
+    { "pose_name": "vrikshasana", "client_id": "tree", "display_name": "Tree Pose", "reference_angles": [] },
+    { "pose_name": "adho_mukha_svanasana", "client_id": "downward-dog", "display_name": "Downward-Facing Dog", "reference_angles": [] },
+    { "pose_name": "virabhadrasana_ii", "client_id": "warrior-2", "display_name": "Warrior II", "reference_angles": [] },
+    { "pose_name": "trikonasana", "client_id": "triangle", "display_name": "Triangle Pose", "reference_angles": [] },
+    { "pose_name": "bhujangasana", "client_id": "cobra", "display_name": "Cobra Pose", "reference_angles": [] },
+    { "pose_name": "balasana", "client_id": "childs", "display_name": "Child's Pose", "reference_angles": [] },
+    { "pose_name": "utkatasana", "client_id": "chair", "display_name": "Chair Pose", "reference_angles": [] }
+  ],
+  "days": [
+    { "day_number": 1, "title": "Day 1", "theme": "Foundations", "description": "Learn the core standing and resting poses that build your practice.", "poses": ["tadasana", "balasana", "utkatasana", "vrikshasana", "adho_mukha_svanasana"] },
+    { "day_number": 2, "title": "Day 2", "theme": "Strength & Balance", "description": "Add a few new poses while drilling your foundation forms.", "poses": ["tadasana", "adho_mukha_svanasana", "virabhadrasana_ii", "trikonasana", "bhujangasana", "balasana"] },
+    { "day_number": 3, "title": "Day 3", "theme": "Opening the Body", "description": "Focus on flexibility through side stretches and hip openers.", "poses": ["vrikshasana", "utkatasana", "virabhadrasana_ii", "trikonasana", "adho_mukha_svanasana", "bhujangasana"] },
+    { "day_number": 4, "title": "Day 4", "theme": "Standing Strong", "description": "A longer standing sequence to build endurance and alignment.", "poses": ["tadasana", "utkatasana", "virabhadrasana_ii", "vrikshasana", "trikonasana", "bhujangasana", "adho_mukha_svanasana"] },
+    { "day_number": 5, "title": "Day 5", "theme": "Flow & Release", "description": "Move smoothly between poses while releasing tension in the hips and spine.", "poses": ["balasana", "adho_mukha_svanasana", "bhujangasana", "virabhadrasana_ii", "trikonasana", "vrikshasana", "utkatasana"] },
+    { "day_number": 6, "title": "Day 6", "theme": "Full Routine", "description": "Almost the entire sequence - link your balance, strength and flexibility.", "poses": ["tadasana", "vrikshasana", "virabhadrasana_ii", "trikonasana", "bhujangasana", "adho_mukha_svanasana", "utkatasana", "balasana"] },
+    { "day_number": 7, "title": "Day 7", "theme": "Complete Practice", "description": "Perform the full beginner routine smoothly from start to finish.", "poses": ["tadasana", "vrikshasana", "adho_mukha_svanasana", "virabhadrasana_ii", "trikonasana", "bhujangasana", "balasana", "utkatasana"] }
   ]
 }

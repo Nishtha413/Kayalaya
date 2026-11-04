@@ -15,11 +15,24 @@ class PoseOut(BaseModel):
     id: int
     pose_name: str
     display_name: str
-    day_number: int | None = None
+    client_id: str | None = None
     reference_angles: list[ReferenceAngleOut] = []
 
     class Config:
         from_attributes = True
+
+
+class ProgramDayPoseOut(BaseModel):
+    order_in_day: int
+    pose: PoseOut
+
+
+class ProgramDayOut(BaseModel):
+    day_number: int
+    title: str
+    theme: str
+    description: str
+    poses: list[ProgramDayPoseOut]
 
 
 class PracticeAttemptCreate(BaseModel):
@@ -28,7 +41,7 @@ class PracticeAttemptCreate(BaseModel):
     server-side logic has computed a score for a known pose during Practice Mode.
     """
 
-    pose_id: int
+    pose_id: int | str
     day_number: int
     accuracy_score: float
     joint_feedback: dict[str, str] | None = None

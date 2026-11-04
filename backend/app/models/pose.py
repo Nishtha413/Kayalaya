@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Float, ForeignKey, Integer, String
+from sqlalchemy import Column, Float, ForeignKey, Integer, String, UniqueConstraint
 
 from app.db.database import Base
 
@@ -9,8 +9,31 @@ class Pose(Base):
     id = Column(Integer, primary_key=True, index=True)
     pose_name = Column(String, unique=True, index=True, nullable=False)  # e.g. "tadasana"
     display_name = Column(String, nullable=False)  # e.g. "Mountain Pose"
-    day_number = Column(Integer, nullable=True)  # which day (1-7) of the guided program this pose belongs to
-    order_in_day = Column(Integer, nullable=True)
+
+
+class PoseClientId(Base):
+    __tablename__ = "pose_client_ids"
+
+    pose_id = Column(Integer, ForeignKey("poses.id"), primary_key=True)
+    client_id = Column(String, unique=True, nullable=False)
+
+
+class ProgramDay(Base):
+    __tablename__ = "program_days"
+
+    day_number = Column(Integer, primary_key=True)
+    title = Column(String, nullable=False)
+    theme = Column(String, nullable=False)
+    description = Column(String, nullable=False)
+
+
+class ProgramDayPose(Base):
+    __tablename__ = "program_day_poses"
+    __table_args__ = (UniqueConstraint("day_number", "order_in_day"),)
+
+    day_number = Column(Integer, ForeignKey("program_days.day_number"), primary_key=True)
+    pose_id = Column(Integer, ForeignKey("poses.id"), primary_key=True)
+    order_in_day = Column(Integer, nullable=False)
 
 
 class ReferenceAngle(Base):
