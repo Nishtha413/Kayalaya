@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kayalaya_user
+      POSTGRES_PASSWORD: kayalaya_pass
+      POSTGRES_DB: kayalaya_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - kayalaya_pgdata:/var/lib/postgresql/data
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://kayalaya_user:kayalaya_pass@db:5432/kayalaya_db
+      JWT_SECRET_KEY: dev_only_change_me
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/code/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  kayalaya_pgdata:
