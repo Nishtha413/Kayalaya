@@ -77,6 +77,21 @@ program sequence changes, edit `app/seed/seed_data.json` and re-run the seed. On
 - `POST /api/progress/final-test-result` returns 403 until all days are complete.
 - `POST /api/progress/practice-attempt` returns 404 for an unknown `pose_id` and 422 if the pose is not assigned to the submitted day.
 
+## Running Tests
+
+Automated tests are built with `pytest` and execute against an isolated in-memory SQLite database without requiring a running PostgreSQL server or Docker container.
+
+```bash
+cd backend
+pytest -v
+```
+
+The test suite covers:
+- **Authentication**: Registration (success, duplicate emails, validation), password hashing, login, JWT token validity, and expired/tampered tokens.
+- **Poses & Lookup**: Pose listing, reference angles, and lookup by numeric ID, mobile client slug (`mountain`), and Sanskrit name (`tadasana`).
+- **7-Day Program**: Program day structures, metadata (theme/title/description), and ordered pose sequences.
+- **Progress & Gating**: Final test lock enforcement (403), practice attempt validations (404 for unknown poses, 422 for unassigned poses), day completion, and progression unlock.
+
 ## What's already implemented
 
 - User registration and login with JWT auth
@@ -84,6 +99,7 @@ program sequence changes, edit `app/seed/seed_data.json` and re-run the seed. On
 - Seed script and seed data
 - Practice attempt and final test submission, with final test gated on program completion
 - Progress status and history endpoints for the dashboard
+- Automated pytest test suite (26 tests)
 
 ## Not implemented yet
 
