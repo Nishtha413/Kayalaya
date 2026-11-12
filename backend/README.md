@@ -54,6 +54,28 @@ This starts both PostgreSQL and the API. Visit http://localhost:8000/docs for in
    ```
 4. Visit http://localhost:8000/docs.
 
+## Database Migrations (Alembic)
+
+Schema management is handled by Alembic. When models change, generate and apply migrations:
+
+```bash
+cd backend
+
+# Apply pending migrations
+alembic upgrade head
+
+# Generate a new migration after editing models
+alembic revision --autogenerate -m "Add new columns or tables"
+
+# Rollback one migration step
+alembic downgrade -1
+```
+
+In Docker:
+```bash
+docker compose exec api alembic upgrade head
+```
+
 ## Seeding pose data
 
 After the API/database is up, load the poses, app-ID mappings, seven-day schedule, and reference angles:
@@ -100,11 +122,11 @@ The test suite covers:
 - Practice attempt and final test submission, with final test gated on program completion
 - Progress status and history endpoints for the dashboard
 - Automated pytest test suite (26 tests)
+- Alembic migrations (`alembic upgrade head`)
 
 ## Not implemented yet
 
 - [ ] Real reference angles for the 7 poses besides tadasana (Pose Analysis Lead)
-- [ ] Alembic migrations (currently `Base.metadata.create_all`, fine early on but it won't apply schema changes to existing tables)
 - [ ] Image/frame upload endpoint, only if camera processing ends up server-side
 - [ ] Deployment config for the final demo
 
