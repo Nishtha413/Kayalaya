@@ -12,11 +12,13 @@ import type { AssessmentResult, DayResult, SurveyAnswers, UserProfile } from '..
 import { DAY_COUNT } from '../data/program';
 import {
   loadState,
-  loadUser,
+  loadToken,
   saveAssessment,
   saveCompletedDays,
+  saveToken,
   saveUser,
 } from '../data/storage';
+import * as api from '../data/api';
 
 export interface AppContextValue {
   hydrated: boolean;
@@ -32,7 +34,7 @@ export interface AppContextValue {
   totalSessions: number;
   averageAccuracy: number;
   streakDays: number;
-  signIn: (name: string, email: string) => Promise<UserProfile>;
+  signIn: (mode: 'login' | 'create', payload: { name?: string; email: string; password: string }) => Promise<UserProfile>;
   signOut: () => Promise<void>;
   completeSurvey: (survey: SurveyAnswers) => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
@@ -88,42 +90,80 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let mounted = true;
     (async () => {
       const state = await loadState();
-      if (!mounted) {
-        return;
+      const token = await loadToken();
+      let nextUser = state.user;
+      if (token) {
+        try {
+          const me = await api.getMe(token);
+          const localMatch = nextUser && nextUser.email === me.email ? nextUser : null;
+          nextUser = {
+            name: me.display_name || localMatch?.name || me.email.split('@')[0],
+            email: me.email,
+            createdAt: localMatch?.createdAt || new Date().toISOString(),
+            survey: (me.survey as any) ?? localMatch?.survey ?? null,
+          };
+          await saveUser(nextUser);
+        } catch {
+          await saveToken(null);
+          nextUser = null;
+          await saveUser(null);
+        }
       }
-      setUser(state.user);
-      setCompletedDays(state.completedDays);
-      setAssessment(state.assessment);
+      if (!mounted) return;
+      setUser(nextUser);
+      setCompletedDays(nextUser ? state.completedDays : {});
+      setAssessment(nextUser ? state.assessment : null);
       setHydrated(true);
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
-const signIn = useCallback(async (name: string, email: string) => {
-    const existing = await loadUser();
-    const fallback = email.trim().split('@')[0];
-    const next: UserProfile = existing
-      ? { ...existing, name: name.trim() || existing.name || fallback, email }
-      : { name: name.trim() || fallback, email, createdAt: new Date().toISOString(), survey: null };
-    setUser(next);
-    await saveUser(next);
-    return next;
+  const signIn = useCallback(async (mode: 'login' | 'create', payload: { name?: string; email: string; password: string }) => {
+    const email = payload.email.trim().toLowerCase();
+    let auth: { access_token: string; user: api.ApiUser };
+    if (mode === 'create') {
+      await api.register(email, payload.password, (payload.name || '').trim());
+      auth = await api.login(email, payload.password);
+    } else {
+      auth = await api.login(email, payload.password);
+    }
+    await saveToken(auth.access_token);
+    const existing = await loadState().then((s) => s.user);
+    const localMatch = existing && existing.email === auth.user.email ? existing : null;
+    const profile: UserProfile = {
+      name: auth.user.display_name || localMatch?.name || (payload.name || '').trim() || email.split('@')[0],
+      email: auth.user.email,
+      createdAt: localMatch?.createdAt || new Date().toISOString(),
+      survey: (auth.user.survey as any) ?? localMatch?.survey ?? null,
+    };
+    setUser(profile);
+    await saveUser(profile);
+    return profile;
   }, []);
 
   const signOut = useCallback(async () => {
     setUser(null);
+    await saveUser(null);
+    await saveToken(null);
   }, []);
 
   const completeSurvey = useCallback(async (survey: SurveyAnswers) => {
+    let next: UserProfile | null = null;
     setUser((prev) => {
-      const next = prev ? { ...prev, survey } : null;
-      if (next) {
-        saveUser(next);
-      }
+      next = prev ? { ...prev, survey } : null;
       return next;
     });
+    if (next) {
+      await saveUser(next);
+      const token = await loadToken();
+      if (token) {
+        try {
+          await api.saveSurvey(token, survey);
+        } catch {
+          // saved locally; will retry on next app session
+        }
+      }
+    }
   }, []);
 
   const updateProfile = useCallback(

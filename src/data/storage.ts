@@ -1,9 +1,10 @@
-import { getJSON, setJSON, removeItem } from '../utils/storage';
+import { getJSON, setJSON, removeItem, getItem, setItem } from '../utils/storage';
 import type { AssessmentResult, DayResult, UserProfile } from '../types';
 
 export const USER_KEY = 'kayalaya.user';
 export const DAYS_KEY = 'kayalaya.completedDays';
 export const ASSESSMENT_KEY = 'kayalaya.assessment';
+export const TOKEN_KEY = 'kayalaya.token';
 
 export interface PersistedState {
   user: UserProfile | null;
@@ -29,6 +30,18 @@ export async function saveUser(user: UserProfile | null): Promise<void> {
     await setJSON(USER_KEY, user);
   } else {
     await removeItem(USER_KEY);
+  }
+}
+
+export async function loadToken(): Promise<string | null> {
+  return await getItem(TOKEN_KEY);
+}
+
+export async function saveToken(token: string | null): Promise<void> {
+  if (token) {
+    await setItem(TOKEN_KEY, token);
+  } else {
+    await removeItem(TOKEN_KEY);
   }
 }
 

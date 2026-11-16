@@ -34,9 +34,15 @@ export default function AuthScreen() {
 
   const submit = async () => {
     setError(null);
+    const emailTrim = email.trim().toLowerCase();
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim);
     if (mode === 'create') {
-      if (!name.trim() || !email.trim()) {
+      if (!name.trim() || !emailTrim) {
         setError('Please fill in your name and email.');
+        return;
+      }
+      if (!emailOk) {
+        setError('Please enter a valid email address.');
         return;
       }
       if (password.length < 8) {
@@ -44,15 +50,18 @@ export default function AuthScreen() {
         return;
       }
     } else {
-      if (!email.trim() || !password.trim()) {
+      if (!emailTrim || !password) {
         setError('Please enter your email and password.');
+        return;
+      }
+      if (!emailOk) {
+        setError('Please enter a valid email address.');
         return;
       }
     }
     setLoading(true);
     try {
-      const displayName = mode === 'create' ? name.trim() : '';
-      const profile = await signIn(displayName, email.trim());
+      const profile = await signIn(mode, { name: name.trim(), email: emailTrim, password });
       if (profile.survey) {
         navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
       } else {
@@ -61,8 +70,9 @@ export default function AuthScreen() {
           routes: [{ name: 'Survey', params: { name: profile.name } }],
         });
       }
-    } catch {
-      setError('Something went wrong. Please try again.');
+    } catch (e: any) {
+      const msg = typeof e?.message === 'string' ? e.message : 'Something went wrong. Please try again.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -146,32 +156,7 @@ export default function AuthScreen() {
           <Button title="Continue" onPress={submit} loading={loading} icon="arrow-right" />
         </View>
 
-        <View style={styles.dividerRow}>
-          <View style={[styles.line, { backgroundColor: colors.line }]} />
-          <AppText variant="overline" color={colors.muted}>
-            or continue with
-          </AppText>
-          <View style={[styles.line, { backgroundColor: colors.line }]} />
-        </View>
 
-        <View style={styles.socialRow}>
-          <Button
-            title="Google"
-            variant="secondary"
-            fullWidth={false}
-            style={styles.socialBtn}
-            icon="google"
-            onPress={() => {}}
-          />
-          <Button
-            title="Apple"
-            variant="secondary"
-            fullWidth={false}
-            style={styles.socialBtn}
-            icon="apple"
-            onPress={() => {}}
-          />
-        </View>
 
         <Pressable
           style={styles.footer}
@@ -219,15 +204,7 @@ const styles = StyleSheet.create({
   fields: { width: '100%' },
   helper: { marginTop: -8, marginBottom: 12, marginLeft: 2 },
   error: { textAlign: 'center', marginBottom: 8 },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginVertical: 22,
-  },
-  line: { flex: 1, height: 1 },
-  socialRow: { flexDirection: 'row', gap: 12 },
-  socialBtn: { flex: 1 },
+
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
