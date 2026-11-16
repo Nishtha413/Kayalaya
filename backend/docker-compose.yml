@@ -20,7 +20,7 @@ services:
       DATABASE_URL: postgresql://kayalaya_user:kayalaya_pass@db:5432/kayalaya_db
       JWT_SECRET_KEY: dev_only_change_me
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - ./app:/code/app
       - ./alembic:/code/alembic

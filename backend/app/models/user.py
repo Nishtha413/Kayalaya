@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Integer, String, func
+from sqlalchemy import Column, DateTime, Integer, JSON, String, func
 
 from app.db.database import Base
 
@@ -10,4 +10,5 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     display_name = Column(String, nullable=True)
+    survey = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
