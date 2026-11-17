@@ -1,10 +1,11 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Any
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=8, max_length=128, description="Password must be at least 8 characters")
     display_name: str | None = None
 
     @field_validator("email")
@@ -14,13 +15,12 @@ class UserCreate(BaseModel):
 
 
 class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     email: EmailStr
     display_name: str | None = None
     survey: dict[str, Any] | None = None
-
-    class Config:
-        from_attributes = True
 
 
 class Token(BaseModel):

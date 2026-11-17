@@ -117,3 +117,123 @@ def test_protected_route_with_expired_token(client: TestClient, db_session: Sess
         headers={"Authorization": f"Bearer {expired_token}"},
     )
     assert response.status_code == 401
+
+
+def test_register_password_too_short(client: TestClient):
+    response = client.post(
+        "/api/auth/register",
+        json={"email": "shortpass@kayalaya.app", "password": "12345"},
+    )
+    assert response.status_code == 422
+
+
+def test_token_form_login_success(client: TestClient):
+    client.post(
+        "/api/auth/register",
+        json={"email": "swagger@kayalaya.app", "password": "swaggerpassword123"},
+    )
+    # Form data request matching OAuth2 standard
+    response = client.post(
+        "/api/auth/token",
+        data={"username": "swagger@kayalaya.app", "password": "swaggerpassword123"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"
+
+
+def test_token_form_login_failure(client: TestClient):
+    response = client.post(
+        "/api/auth/token",
+        data={"username": "nonexistent@kayalaya.app", "password": "wrongpassword"},
+    )
+    assert response.status_code == 401
+
+
+def test_get_current_user_me(client: TestClient):
+    reg = client.post(
+        "/api/auth/register",
+        json={
+            "email": "me@kayalaya.app",
+            "password": "mepassword123",
+            "display_name": "Me Yogi",
+        },
+    )
+    token = client.post(
+        "/api/auth/login",
+        json={"email": "me@kayalaya.app", "password": "mepassword123"},
+    ).json()["access_token"]
+
+    response = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["email"] == "me@kayalaya.app"
+    assert data["display_name"] == "Me Yogi"
+    assert data["id"] == reg.json()["id"]
+
+
+def test_delete_account_and_cascade_data(client: TestClient, seeded_db: Session):
+    reg = client.post(
+        "/api/auth/register",
+        json={"email": "delete_me@kayalaya.app", "password": "password123"},
+    )
+    user_id = reg.json()["id"]
+    token = client.post(
+        "/api/auth/login",
+        json={"email": "delete_me@kayalaya.app", "password": "password123"},
+    ).json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Record a practice attempt for this user
+    client.post(
+        "/api/progress/practice-attempt",
+        headers=headers,
+        json={"pose_id": "mountain", "day_number": 1, "accuracy_score": 85.0},
+    )
+
+    # Delete account
+    del_res = client.delete("/api/auth/me", headers=headers)
+    assert del_res.status_code == 200
+
+    # User no longer exists
+    me_res = client.get("/api/auth/me", headers=headers)
+    assert me_res.status_code == 401
+
+    # Cannot login with deleted credentials
+    login_res = client.post(
+        "/api/auth/login",
+        json={"email": "delete_me@kayalaya.app", "password": "password123"},
+    )
+    assert login_res.status_code == 401
+
+
+def test_update_user_survey(client: TestClient):
+    client.post(
+        "/api/auth/register",
+        json={"email": "survey@kayalaya.app", "password": "password123"},
+    )
+    login_res = client.post(
+        "/api/auth/login",
+        json={"email": "survey@kayalaya.app", "password": "password123"},
+    )
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    survey_payload = {
+        "survey": {
+            "experience_level": "beginner",
+            "goals": ["flexibility", "stress_relief"],
+            "injuries": "none",
+        }
+    }
+    update_res = client.put("/api/auth/me/survey", headers=headers, json=survey_payload)
+    assert update_res.status_code == 200
+    assert update_res.json()["survey"]["experience_level"] == "beginner"
+
+    # Fetching me also reflects updated survey
+    me_res = client.get("/api/auth/me", headers=headers)
+    assert me_res.status_code == 200
+    assert me_res.json()["survey"]["goals"] == ["flexibility", "stress_relief"]
+
+

@@ -192,3 +192,41 @@ def test_user_progress_isolation(client: TestClient, seeded_db: Session, auth_us
     # User B history should be empty
     history_b = client.get("/api/progress/history", headers=headers_b).json()
     assert len(history_b["practice_attempts"]) == 0
+
+
+def test_practice_attempt_score_bounds(client: TestClient, seeded_db: Session, auth_user: dict):
+    # Score below 0
+    res_low = client.post(
+        "/api/progress/practice-attempt",
+        headers=auth_user["headers"],
+        json={"pose_id": "mountain", "day_number": 1, "accuracy_score": -1.0},
+    )
+    assert res_low.status_code == 422
+
+    # Score above 100
+    res_high = client.post(
+        "/api/progress/practice-attempt",
+        headers=auth_user["headers"],
+        json={"pose_id": "mountain", "day_number": 1, "accuracy_score": 105.0},
+    )
+    assert res_high.status_code == 422
+
+
+def test_history_ordering_and_pagination(client: TestClient, seeded_db: Session, auth_user: dict):
+    headers = auth_user["headers"]
+
+    # Submit 3 attempts with distinct scores
+    for score in [70.0, 80.0, 90.0]:
+        client.post(
+            "/api/progress/practice-attempt",
+            headers=headers,
+            json={"pose_id": "mountain", "day_number": 1, "accuracy_score": score},
+        )
+
+    # Fetch history with limit
+    history = client.get("/api/progress/history?limit=2", headers=headers).json()
+    assert len(history["practice_attempts"]) == 2
+    # The most recent attempt should be first (score 90.0)
+    assert history["practice_attempts"][0]["accuracy_score"] == 90.0
+    assert history["practice_attempts"][1]["accuracy_score"] == 80.0
+

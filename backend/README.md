@@ -22,7 +22,7 @@ app/
   api/
     deps.py                 → get_current_user (JWT) dependency
     routes/
-      auth.py                 → /api/auth/register, /api/auth/login
+      auth.py                 → /api/auth/register, /login, /token, /me (GET/DELETE)
       poses.py                 → /api/poses, /api/poses/{id}
       program.py               → /api/program/days
       progress.py                → /api/progress/status, /practice-attempt, /final-test-result, /history
@@ -116,12 +116,14 @@ The test suite covers:
 
 ## What's already implemented
 
-- User registration and login with JWT auth
+- User registration, login, profile fetch (`GET /api/auth/me`), and account deletion (`DELETE /api/auth/me`)
+- OAuth2 form token endpoint (`POST /api/auth/token`) for Swagger UI Authorize
+- Pydantic validation (minimum password length $\ge 6$, score bounds $0.0 \le score \le 100.0$)
 - Pose and ReferenceAngle models matching `reference_angle_contract.json`
 - Seed script and seed data
 - Practice attempt and final test submission, with final test gated on program completion
-- Progress status and history endpoints for the dashboard
-- Automated pytest test suite (26 tests)
+- Progress status and reverse-chronological history endpoints with pagination
+- Automated pytest test suite (33 tests)
 - Alembic migrations (`alembic upgrade head`)
 
 ## Not implemented yet
