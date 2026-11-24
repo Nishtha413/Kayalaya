@@ -37,7 +37,7 @@ app/
 docker compose up --build
 ```
 
-This starts both PostgreSQL and the API. Visit http://localhost:8000/docs for interactive Swagger docs.
+This starts both PostgreSQL and the API. Visit http://localhost:8001/docs for interactive Swagger docs.
 
 ## Option B: Run locally without Docker
 
@@ -47,12 +47,12 @@ This starts both PostgreSQL and the API. Visit http://localhost:8000/docs for in
    source venv/bin/activate  # Windows: venv\Scripts\activate
    pip install -r requirements.txt
    ```
-2. Make sure PostgreSQL is running locally and matches the connection details in `.env` (copy `.env.example` → `.env` and edit as needed).
-3. Run the server:
+2. Make sure your database is running or set `DATABASE_URL` (e.g. SQLite for dev: `$env:DATABASE_URL="sqlite:///./dev.db"`).
+3. Run the server (on port 8001 to match the mobile app):
    ```bash
-   uvicorn app.main:app --reload
+   uvicorn app.main:app --reload --port 8001
    ```
-4. Visit http://localhost:8000/docs.
+4. Visit http://localhost:8001/docs.
 
 ## Database Migrations (Alembic)
 
