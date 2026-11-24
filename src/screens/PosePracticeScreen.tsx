@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useCameraPermissions } from 'expo-camera';
+import { PoseCameraView } from 'expo-mediapipe-pose';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
@@ -12,6 +13,8 @@ import type {
 } from '../types';
 import { useTheme } from '../theme/ThemeProvider';
 import { posesForDay } from '../data/program';
+import { POSE_RULES } from '../data/poseRules';
+import { usePoseFeedback } from '../pose/usePoseFeedback';
 import { useApp } from '../context/AppContext';
 import AppText from '../components/AppText';
 import Button from '../components/Button';
@@ -25,6 +28,8 @@ type Route = RouteProp<RootStackParamList, 'PosePractice'>;
 type Mode = 'detail' | 'practice' | 'done';
 
 const ASSESSMENT_SECONDS = 120;
+const HOLD_TARGET_SECONDS = 10; // seconds of correct form needed to finish a practice pose
+const ASSESSMENT_HOLD_MS = 2000; // continuous correct form needed to count in the assessment
 
 export default function PosePracticeScreen() {
   const insets = useSafeAreaInsets();
@@ -40,48 +45,61 @@ export default function PosePracticeScreen() {
   const pose = poses[poseIndex];
   const isAssessment = dayId === 7;
   const [mode, setMode] = useState<Mode>('detail');
-  const [accuracy, setAccuracy] = useState(0);
   const [elapsed, setElapsed] = useState(0);
-  const pulse = useRef(new Animated.Value(1)).current;
+  const [held, setHeld] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const detectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { accuracy, correction, inPose, onFrame, reset } = usePoseFeedback(POSE_RULES[pose.id]);
+  const inPoseRef = useRef(false);
+  inPoseRef.current = inPose;
 
   const [countdown, setCountdown] = useState(ASSESSMENT_SECONDS);
   const [result, setResult] = useState<'detected' | 'missed' | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
-  const [correction, setCorrection] = useState<string | null>(null);
 
   const percent = Math.round(((poseIndex + 1) / poses.length) * 100);
   const minutes = Math.max(1, Math.round(pose.duration / 60));
   const nextPose = poseIndex + 1 < poses.length ? poses[poseIndex + 1] : null;
   const timeLabel = `${Math.floor(countdown / 60)}:${String(countdown % 60).padStart(2, '0')}`;
 
+  // Fresh detection state every time practice starts
+  useEffect(() => {
+    if (mode === 'practice') reset();
+  }, [mode, reset]);
+
+  // Practice: count seconds, and count only seconds where the form is correct
   useEffect(() => {
     if (mode !== 'practice' || isAssessment) {
       return;
     }
-    setAccuracy(0);
     setElapsed(0);
+    setHeld(0);
     timerRef.current = setInterval(() => {
       setElapsed((e) => e + 1);
-      setAccuracy((a) => Math.min(100, a + Math.floor(Math.random() * 8) + 3));
+      if (inPoseRef.current) setHeld((h) => h + 1);
     }, 1000);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [mode, isAssessment]);
 
+  // Assessment: countdown timer
   useEffect(() => {
     if (!isAssessment || mode !== 'practice') {
       return;
     }
     const interval = setInterval(() => setCountdown((c) => Math.max(0, c - 1)), 1000);
-    detectRef.current = setTimeout(() => setResult('detected'), 12000);
-    return () => {
-      clearInterval(interval);
-      if (detectRef.current) clearTimeout(detectRef.current);
-    };
+    return () => clearInterval(interval);
   }, [mode, isAssessment]);
+
+  // Assessment: pose counts once correct form is held continuously
+  useEffect(() => {
+    if (!isAssessment || mode !== 'practice' || !inPose) {
+      return;
+    }
+    const id = setTimeout(() => setResult('detected'), ASSESSMENT_HOLD_MS);
+    return () => clearTimeout(id);
+  }, [isAssessment, mode, inPose]);
 
   useEffect(() => {
     if (!isAssessment || mode !== 'practice') {
@@ -106,41 +124,13 @@ export default function PosePracticeScreen() {
     }
   }, [result, mode, isAssessment]);
 
+  // Practice finishes after enough seconds of correct form
   useEffect(() => {
-    if (mode === 'practice' && (elapsed >= 8 || accuracy >= 100) && !isAssessment) {
+    if (mode === 'practice' && !isAssessment && held >= HOLD_TARGET_SECONDS) {
       if (timerRef.current) clearInterval(timerRef.current);
       setMode('done');
     }
-  }, [mode, elapsed, accuracy, isAssessment]);
-
-  useEffect(() => {
-    if (mode !== 'practice') return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.08, duration: 700, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [mode, pulse]);
-
-  useEffect(() => {
-    if (mode !== 'practice' || isAssessment) {
-      setCorrection(null);
-      return;
-    }
-    const cues = pose.tips;
-    const id = setInterval(() => {
-      const good = Math.random() < 0.3;
-      setCorrection(
-        good
-          ? 'Great — hold it steady!'
-          : `Fix: ${cues[Math.floor(Math.random() * cues.length)]}`,
-      );
-    }, 2200);
-    return () => clearInterval(id);
-  }, [mode, isAssessment, poseIndex, pose]);
+  }, [mode, held, isAssessment]);
 
   const finishAssessment = (finalMarks: PerPoseAssessment[]) => {
     const correctCount = finalMarks.filter((m) => m.correct).length;
@@ -343,31 +333,27 @@ export default function PosePracticeScreen() {
               <>
                 <View style={[styles.liveCameraWrap, { height: camHeight }]}>
                   {permission?.granted ? (
-                    <CameraView style={styles.cameraFeed} facing="front" />
+                    <PoseCameraView
+                      style={styles.cameraFeed}
+                      cameraFacing="front"
+                      isActive={mode === 'practice'}
+                      frameLimit={15}
+                      callbackFps={10}
+                      onLandmark={onFrame}
+                      onCameraConfigured={reset}
+                      onInferenceError={(e) => console.warn('pose error', e.code)}
+                      // neutral color: the assessment promises no corrections or hints
+                      skeleton={{ color: '#FFFFFF' }}
+                    />
                   ) : null}
                   <View style={styles.mpTag}>
                     <AppText variant="overline" color="#FFFFFF">
                       MediaPipe
                     </AppText>
                   </View>
-                  <Animated.View
-                    style={[
-                      styles.cameraIconWrap,
-                      {
-                        backgroundColor: 'rgba(255,255,255,0.12)',
-                        transform: [{ scale: mode === 'practice' ? pulse : 1 }],
-                      },
-                    ]}
-                  >
-                    <Icon
-                      name={pose.icon}
-                      size={76}
-                      color={result === 'detected' ? colors.sageDeep : '#FFFFFF'}
-                    />
-                  </Animated.View>
                   <AppText
                     variant="caption"
-                    color="rgba(255,255,255,0.7)"
+                    color="rgba(255,255,255,0.85)"
                     style={styles.liveLabel}
                   >
                     {mode === 'practice'
@@ -378,7 +364,7 @@ export default function PosePracticeScreen() {
                   </AppText>
 
                   {mode === 'done' ? (
-                    <View style={[styles.feedbackBox, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
+                    <View style={[styles.feedbackBox, { backgroundColor: 'rgba(0,0,0,0.45)' }]}>
                       <Icon
                         name={result === 'detected' ? 'check-circle' : 'alert-circle'}
                         size={18}
@@ -413,29 +399,24 @@ export default function PosePracticeScreen() {
               <>
                 <View style={[styles.liveCameraWrap, { height: camHeight }]}>
                   {permission?.granted ? (
-                    <CameraView style={styles.cameraFeed} facing="front" />
+                    <PoseCameraView
+                      style={styles.cameraFeed}
+                      cameraFacing="front"
+                      isActive={mode === 'practice'}
+                      frameLimit={15}
+                      callbackFps={10}
+                      onLandmark={onFrame}
+                      onCameraConfigured={reset}
+                      onInferenceError={(e) => console.warn('pose error', e.code)}
+                      skeleton={{ color: inPose ? '#6F9163' : '#E39CAA' }}
+                    />
                   ) : null}
                   <View style={styles.mpTag}>
                     <AppText variant="overline" color="#FFFFFF">
                       MediaPipe
                     </AppText>
                   </View>
-                  <Animated.View
-                    style={[
-                      styles.cameraIconWrap,
-                      {
-                        backgroundColor: 'rgba(255,255,255,0.12)',
-                        transform: [{ scale: pulse }],
-                      },
-                    ]}
-                  >
-                    <Icon
-                      name={pose.icon}
-                      size={76}
-                      color={mode === 'done' && accuracy >= 75 ? colors.sageDeep : '#FFFFFF'}
-                    />
-                  </Animated.View>
-                  <AppText variant="caption" color="rgba(255,255,255,0.7)" style={styles.liveLabel}>
+                  <AppText variant="caption" color="rgba(255,255,255,0.85)" style={styles.liveLabel}>
                     {mode === 'practice' ? 'Camera feed' : 'Done'}
                   </AppText>
 
@@ -474,13 +455,13 @@ export default function PosePracticeScreen() {
                         <AppText variant="label" color="#FFFFFF" bold>
                           {accuracy}% accuracy
                         </AppText>
-                        <AppText variant="caption" color="rgba(255,255,255,0.7)">
-                          {elapsed}s elapsed
+                        <AppText variant="caption" color="rgba(255,255,255,0.85)">
+                          {held}/{HOLD_TARGET_SECONDS}s held · {elapsed}s elapsed
                         </AppText>
                       </View>
                     </View>
                   ) : (
-                    <View style={[styles.feedbackBox, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
+                    <View style={[styles.feedbackBox, { backgroundColor: 'rgba(0,0,0,0.45)' }]}>
                       <Icon
                         name={accuracy >= 75 ? 'check-circle' : 'alert-circle'}
                         size={18}
@@ -554,7 +535,14 @@ export default function PosePracticeScreen() {
       <View style={styles.bottom}>
         {mode === 'detail' ? null : mode === 'practice' ? (
           isAssessment ? (
-            <Button title="I've held this pose" variant="secondary" onPress={() => setResult('detected')} />
+            // Testing shortcut only: hidden in release builds so it can't bypass detection
+            __DEV__ ? (
+              <Button
+                title="I've held this pose (dev only)"
+                variant="secondary"
+                onPress={() => setResult('detected')}
+              />
+            ) : null
           ) : (
             <Button
               title="Finish Early"
@@ -789,12 +777,15 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
+  // camera fills the box; labels/chips/stats sit at the bottom over the video
   liveCameraWrap: {
     borderRadius: 22,
     overflow: 'hidden',
     padding: 20,
     paddingBottom: 18,
     alignItems: 'center',
+    justifyContent: 'flex-end',
+    backgroundColor: '#2E2640',
   },
   correctionChip: {
     flexDirection: 'row',
