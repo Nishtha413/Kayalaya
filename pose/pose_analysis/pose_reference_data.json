@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "source": "backend/app/seed/seed_data.json",
+  "landmark_coordinate_names": "expo-mediapipe-pose camelCase",
+  "poses": [
+    {
+      "pose_name": "tadasana",
+      "client_id": "mountain",
+      "display_name": "Mountain Pose",
+      "reference_angles": [
+        {
+          "id": "left_hip_knee_ankle",
+          "landmarks": [
+            "leftHip",
+            "leftKnee",
+            "leftAnkle"
+          ],
+          "min_deg": 168,
+          "max_deg": 180,
+          "tolerance_deg": 5,
+          "source_id": "backend-seed",
+          "evidence": "project-defined",
+          "validated": false
+        },
+        {
+          "id": "right_hip_knee_ankle",
+          "landmarks": [
+            "rightHip",
+            "rightKnee",
+            "rightAnkle"
+          ],
+          "min_deg": 168,
+          "max_deg": 180,
+          "tolerance_deg": 5,
+          "source_id": "backend-seed",
+          "evidence": "project-defined",
+          "validated": false
+        },
+        {
+          "id": "left_shoulder_hip_knee",
+          "landmarks": [
+            "leftShoulder",
+            "leftHip",
+            "leftKnee"
+          ],
+          "min_deg": 170,
+          "max_deg": 180,
+          "tolerance_deg": 5,
+          "source_id": "backend-seed",
+          "evidence": "project-defined",
+          "validated": false
+        },
+        {
+          "id": "right_shoulder_hip_knee",
+          "landmarks": [
+            "rightShoulder",
+            "rightHip",
+            "rightKnee"
+          ],
+          "min_deg": 170,
+          "max_deg": 180,
+          "tolerance_deg": 5,
+          "source_id": "backend-seed",
+          "evidence": "project-defined",
+          "validated": false
+        }
+      ],
+      "status": "configured_in_backend_unvalidated",
+      "landmark_model": "MediaPipe Pose (frontend expo-mediapipe-pose)",
+      "required_landmarks": [
+        "leftAnkle",
+        "leftHip",
+        "leftKnee",
+        "leftShoulder",
+        "rightAnkle",
+        "rightHip",
+        "rightKnee",
+        "rightShoulder"
+      ],
+      "optional_landmarks": [],
+      "notes": "Frontend poseRules.ts has additional provisional rules; not automatically promoted to backend authoritative references."
+    },
+    {
+      "pose_name": "vrikshasana",
+      "client_id": "tree",
+      "display_name": "Tree Pose",
+      "reference_angles": [],
+      "status": "unconfigured_in_backend",
+      "landmark_model": "MediaPipe Pose (frontend expo-mediapipe-pose)",
+      "required_landmarks": [],
+      "optional_landmarks": [],
+      "notes": "Frontend poseRules.ts has additional provisional rules; not automatically promoted to backend authoritative references."
+    },
+    {
+      "pose_name": "adho_mukha_svanasana",
+      "client_id": "downward-dog",
+      "display_name": "Downward-Facing Dog",
+      "reference_angles": [],
+      "status": "unconfigured_in_backend",
+      "landmark_model": "MediaPipe Pose (frontend expo-mediapipe-pose)",
+      "required_landmarks": [],
+      "optional_landmarks": [],
+      "notes": "Frontend poseRules.ts has additional provisional rules; not automatically promoted to backend authoritative references."
+    },
+    {
+      "pose_name": "virabhadrasana_ii",
+      "client_id": "warrior-2",
+      "display_name": "Warrior II",
+      "reference_angles": [],
+      "status": "unconfigured_in_backend",
+      "landmark_model": "MediaPipe Pose (frontend expo-mediapipe-pose)",
+      "required_landmarks": [],
+      "optional_landmarks": [],
+      "notes": "Frontend poseRules.ts has additional provisional rules; not automatically promoted to backend authoritative references."
+    },
+    {
+      "pose_name": "trikonasana",
+      "client_id": "triangle",
+      "display_name": "Triangle Pose",
+      "reference_angles": [],
+      "status": "unconfigured_in_backend",
+      "landmark_model": "MediaPipe Pose (frontend expo-mediapipe-pose)",
+      "required_landmarks": [],
+      "optional_landmarks": [],
+      "notes": "Frontend poseRules.ts has additional provisional rules; not automatically promoted to backend authoritative references."
+    },
+    {
+      "pose_name": "bhujangasana",
+      "client_id": "cobra",
+      "display_name": "Cobra Pose",
+      "reference_angles": [],
+      "status": "unconfigured_in_backend",
+      "landmark_model": "MediaPipe Pose (frontend expo-mediapipe-pose)",
+      "required_landmarks": [],
+      "optional_landmarks": [],
+      "notes": "Frontend poseRules.ts has additional provisional rules; not automatically promoted to backend authoritative references."
+    },
+    {
+      "pose_name": "balasana",
+      "client_id": "childs",
+      "display_name": "Child's Pose",
+      "reference_angles": [],
+      "status": "unconfigured_in_backend",
+      "landmark_model": "MediaPipe Pose (frontend expo-mediapipe-pose)",
+      "required_landmarks": [],
+      "optional_landmarks": [],
+      "notes": "Frontend poseRules.ts has additional provisional rules; not automatically promoted to backend authoritative references."
+    },
+    {
+      "pose_name": "utkatasana",
+      "client_id": "chair",
+      "display_name": "Chair Pose",
+      "reference_angles": [],
+      "status": "unconfigured_in_backend",
+      "landmark_model": "MediaPipe Pose (frontend expo-mediapipe-pose)",
+      "required_landmarks": [],
+      "optional_landmarks": [],
+      "notes": "Frontend poseRules.ts has additional provisional rules; not automatically promoted to backend authoritative references."
+    }
+  ]
+}
