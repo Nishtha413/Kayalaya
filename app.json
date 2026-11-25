@@ -24,9 +24,10 @@
       "package": "com.anonymous.Kayalaya"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/images/kayalaya.png"
     },
     "plugins": [
+      "expo-dev-client",
       "expo-font",
       "expo-splash-screen",
       [

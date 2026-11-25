@@ -10,12 +10,18 @@ services:
       - "5432:5432"
     volumes:
       - kayalaya_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kayalaya_user -d kayalaya_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   api:
     build: .
     restart: unless-stopped
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgresql://kayalaya_user:kayalaya_pass@db:5432/kayalaya_db
       JWT_SECRET_KEY: dev_only_change_me

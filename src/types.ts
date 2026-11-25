@@ -80,8 +80,9 @@ export type RootStackParamList = {
     dayId: number;
     poseIndex: number;
     marks?: PerPoseAssessment[];
+    results?: PoseResult[];
   };
-  DayComplete: { dayId: number };
+  DayComplete: { dayId: number; results?: PoseResult[]; timeSeconds?: number };
   AssessmentIntro: undefined;
   Assessment: undefined;
   AssessmentResult: { result: AssessmentResult };

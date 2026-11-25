@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useCameraPermissions } from 'expo-camera';
-import { PoseCameraView } from 'expo-mediapipe-pose';
+import { PoseCameraView } from '../pose/PoseCameraView';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
@@ -10,6 +10,7 @@ import type {
   RootStackParamList,
   AssessmentResult,
   PerPoseAssessment,
+  PoseResult,
 } from '../types';
 import { useTheme } from '../theme/ThemeProvider';
 import { posesForDay } from '../data/program';
@@ -40,18 +41,25 @@ export default function PosePracticeScreen() {
   const route = useRoute<Route>();
   const { dayId, poseIndex } = route.params;
   const marks = route.params.marks ?? [];
-  const { completeDay, markPoseCompletion } = useApp();
+  const results = route.params.results ?? [];
+  const { completeDay, completeAssessment, markPoseCompletion, getPoseRules, recordPoseAttempt } = useApp();
   const poses = posesForDay(dayId);
   const pose = poses[poseIndex];
   const isAssessment = dayId === 7;
   const [mode, setMode] = useState<Mode>('detail');
   const [elapsed, setElapsed] = useState(0);
   const [held, setHeld] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const { accuracy, correction, inPose, onFrame, reset } = usePoseFeedback(POSE_RULES[pose.id]);
+  const definition = useMemo(
+    () => getPoseRules(pose.id) ?? POSE_RULES[pose.id],
+    [getPoseRules, pose.id],
+  );
+  const { accuracy, correction, correct, onFrame, status } = usePoseFeedback(definition);
   const inPoseRef = useRef(false);
-  inPoseRef.current = inPose;
+  inPoseRef.current = correct;
+  const needsAdjustment = status === 'needs_adjustment' || status === 'cannot_evaluate';
 
   const [countdown, setCountdown] = useState(ASSESSMENT_SECONDS);
   const [result, setResult] = useState<'detected' | 'missed' | null>(null);
@@ -61,11 +69,6 @@ export default function PosePracticeScreen() {
   const minutes = Math.max(1, Math.round(pose.duration / 60));
   const nextPose = poseIndex + 1 < poses.length ? poses[poseIndex + 1] : null;
   const timeLabel = `${Math.floor(countdown / 60)}:${String(countdown % 60).padStart(2, '0')}`;
-
-  // Fresh detection state every time practice starts
-  useEffect(() => {
-    if (mode === 'practice') reset();
-  }, [mode, reset]);
 
   // Practice: count seconds, and count only seconds where the form is correct
   useEffect(() => {
@@ -94,12 +97,12 @@ export default function PosePracticeScreen() {
 
   // Assessment: pose counts once correct form is held continuously
   useEffect(() => {
-    if (!isAssessment || mode !== 'practice' || !inPose) {
+    if (!isAssessment || mode !== 'practice' || !correct) {
       return;
     }
     const id = setTimeout(() => setResult('detected'), ASSESSMENT_HOLD_MS);
     return () => clearTimeout(id);
-  }, [isAssessment, mode, inPose]);
+  }, [isAssessment, mode, correct]);
 
   useEffect(() => {
     if (!isAssessment || mode !== 'practice') {
@@ -132,7 +135,7 @@ export default function PosePracticeScreen() {
     }
   }, [mode, held, isAssessment]);
 
-  const finishAssessment = (finalMarks: PerPoseAssessment[]) => {
+  const finishAssessment = async (finalMarks: PerPoseAssessment[]) => {
     const correctCount = finalMarks.filter((m) => m.correct).length;
     const score = Math.round((correctCount / finalMarks.length) * 100);
     const resultData: AssessmentResult = {
@@ -149,24 +152,55 @@ export default function PosePracticeScreen() {
           ? ['Cobra Pose', 'Warrior II']
           : ['Warrior II', 'Triangle Pose', 'Cobra Pose', 'Chair Pose'],
     };
-    completeDay(7, score, finalMarks.length * ASSESSMENT_SECONDS);
+    await completeDay(7, score, finalMarks.length * ASSESSMENT_SECONDS);
+    await completeAssessment(resultData);
     navigation.replace('AssessmentResult', { result: resultData });
   };
 
-  const goNext = () => {
-    markPoseCompletion(dayId, poseIndex + 1);
-    const earned = result === 'detected';
-    const nextMarks: PerPoseAssessment[] = [...marks, { poseId: pose.id, correct: earned }];
-    if (nextPose) {
-      navigation.replace('PosePractice', {
-        dayId,
-        poseIndex: poseIndex + 1,
-        marks: nextMarks,
-      });
-    } else if (isAssessment) {
-      finishAssessment(nextMarks);
-    } else {
-      navigation.replace('DayComplete', { dayId });
+  const goNext = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      markPoseCompletion(dayId, poseIndex + 1);
+
+      if (isAssessment) {
+        const earned = result === 'detected';
+        const nextMarks: PerPoseAssessment[] = [...marks, { poseId: pose.id, correct: earned }];
+        await recordPoseAttempt(dayId, pose.id, earned ? 100 : 0, ASSESSMENT_SECONDS);
+        if (nextPose) {
+          navigation.replace('PosePractice', {
+            dayId,
+            poseIndex: poseIndex + 1,
+            marks: nextMarks,
+          });
+        } else {
+          await finishAssessment(nextMarks);
+        }
+        return;
+      }
+
+      const score = Math.round(accuracy);
+      const nextResults: PoseResult[] = [
+        ...results,
+        { poseId: pose.id, accuracy: score, timeSeconds: elapsed },
+      ];
+      await recordPoseAttempt(dayId, pose.id, score, elapsed);
+      if (nextPose) {
+        navigation.replace('PosePractice', {
+          dayId,
+          poseIndex: poseIndex + 1,
+          marks,
+          results: nextResults,
+        });
+      } else {
+        navigation.replace('DayComplete', {
+          dayId,
+          results: nextResults,
+          timeSeconds: nextResults.reduce((sum, item) => sum + item.timeSeconds, 0),
+        });
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -340,7 +374,6 @@ export default function PosePracticeScreen() {
                       frameLimit={15}
                       callbackFps={10}
                       onLandmark={onFrame}
-                      onCameraConfigured={reset}
                       onInferenceError={(e) => console.warn('pose error', e.code)}
                       // neutral color: the assessment promises no corrections or hints
                       skeleton={{ color: '#FFFFFF' }}
@@ -406,9 +439,8 @@ export default function PosePracticeScreen() {
                       frameLimit={15}
                       callbackFps={10}
                       onLandmark={onFrame}
-                      onCameraConfigured={reset}
                       onInferenceError={(e) => console.warn('pose error', e.code)}
-                      skeleton={{ color: inPose ? '#6F9163' : '#E39CAA' }}
+                      skeleton={{ color: correct ? '#6F9163' : '#E39CAA' }}
                     />
                   ) : null}
                   <View style={styles.mpTag}>
@@ -425,14 +457,14 @@ export default function PosePracticeScreen() {
                       style={[
                         styles.correctionChip,
                         {
-                          backgroundColor: correction.startsWith('Fix')
+                          backgroundColor: needsAdjustment
                             ? '#E39CAA'
                             : 'rgba(111,145,99,0.92)',
                         },
                       ]}
                     >
                       <Icon
-                        name={correction.startsWith('Fix') ? 'alert' : 'check'}
+                        name={needsAdjustment ? 'alert' : 'check'}
                         size={16}
                         color="#FFFFFF"
                       />
@@ -556,8 +588,10 @@ export default function PosePracticeScreen() {
         ) : (
           <Button
             title={nextPose ? 'Next Pose' : 'Finish Assessment'}
-            onPress={goNext}
+            onPress={() => void goNext()}
             icon={nextPose ? 'skip-next' : 'check-circle'}
+            loading={submitting}
+            disabled={submitting}
           />
         )}
       </View>

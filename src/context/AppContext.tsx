@@ -19,6 +19,7 @@ import {
   saveUser,
 } from '../data/storage';
 import * as api from '../data/api';
+import { poseRulesFromApiPose, type PoseRuleSet } from '../pose/poseAngles';
 
 export interface AppContextValue {
   hydrated: boolean;
@@ -26,6 +27,8 @@ export interface AppContextValue {
   completedDays: Record<number, DayResult>;
   poseProgress: Record<number, number>;
   assessment: AssessmentResult | null;
+  serverProgress: api.ApiProgressStatus | null;
+  poses: api.ApiPose[];
   nextDayId: number;
   isProgramComplete: boolean;
   isAssessmentUnlocked: boolean;
@@ -41,6 +44,10 @@ export interface AppContextValue {
   completeDay: (dayId: number, accuracy: number, timeSeconds: number) => Promise<void>;
   markPoseCompletion: (dayId: number, count: number) => void;
   completeAssessment: (result: AssessmentResult) => Promise<void>;
+  getPoseRules: (clientId: string) => PoseRuleSet | undefined;
+  refreshProgress: () => Promise<void>;
+  recordPoseAttempt: (dayId: number, poseId: string, accuracy: number, timeSeconds: number) => Promise<void>;
+  submitFinalTestResult: (accuracy: number) => Promise<void>;
   resetProgress: () => Promise<void>;
 }
 
@@ -85,6 +92,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [completedDays, setCompletedDays] = useState<Record<number, DayResult>>({});
   const [poseProgress, setPoseProgress] = useState<Record<number, number>>({});
   const [assessment, setAssessment] = useState<AssessmentResult | null>(null);
+  const [serverProgress, setServerProgress] = useState<api.ApiProgressStatus | null>(null);
+  const [poses, setPoses] = useState<api.ApiPose[]>([]);
+
+  const applyRemoteProgress = useCallback((status: api.ApiProgressStatus) => {
+    setServerProgress(status);
+    setCompletedDays((previous) => {
+      const next: Record<number, DayResult> = {};
+      for (const day of status.days) {
+        if (!day.completed) continue;
+        next[day.day] = previous[day.day] ?? {
+          dayId: day.day,
+          accuracy: 100,
+          timeSeconds: 0,
+          completedAt: new Date().toISOString(),
+        };
+      }
+      saveCompletedDays(next);
+      return next;
+    });
+  }, []);
+
+  const loadRemoteData = useCallback(async (token: string) => {
+    const [status, poseList] = await Promise.all([
+      api.getProgressStatus(token),
+      api.getPoses(token),
+    ]);
+    applyRemoteProgress(status);
+    setPoses(poseList);
+  }, [applyRemoteProgress]);
+
+  const refreshProgress = useCallback(async () => {
+    const token = await loadToken();
+    if (!token) return;
+    const status = await api.getProgressStatus(token);
+    applyRemoteProgress(status);
+  }, [applyRemoteProgress]);
 
   useEffect(() => {
     let mounted = true;
@@ -92,6 +135,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const state = await loadState();
       const token = await loadToken();
       let nextUser = state.user;
+      let remoteLoaded = false;
       if (token) {
         try {
           const me = await api.getMe(token);
@@ -103,6 +147,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             survey: (me.survey as any) ?? localMatch?.survey ?? null,
           };
           await saveUser(nextUser);
+          await loadRemoteData(token).then(() => { remoteLoaded = true; }).catch((error) => console.warn('Unable to load backend data', error));
         } catch {
           await saveToken(null);
           nextUser = null;
@@ -111,12 +156,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       if (!mounted) return;
       setUser(nextUser);
-      setCompletedDays(nextUser ? state.completedDays : {});
+      if (!remoteLoaded) setCompletedDays(nextUser ? state.completedDays : {});
       setAssessment(nextUser ? state.assessment : null);
       setHydrated(true);
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [loadRemoteData]);
+
+  useEffect(() => {
+    if (!user) {
+      setServerProgress(null);
+      setPoses([]);
+    }
+  }, [user]);
 
   const signIn = useCallback(async (mode: 'login' | 'create', payload: { name?: string; email: string; password: string }) => {
     const email = payload.email.trim().toLowerCase();
@@ -138,13 +190,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     setUser(profile);
     await saveUser(profile);
+    await loadRemoteData(auth.access_token).catch((error) => console.warn('Unable to load backend progress', error));
     return profile;
-  }, []);
+  }, [loadRemoteData]);
 
   const signOut = useCallback(async () => {
     setUser(null);
+    setServerProgress(null);
+    setPoses([]);
+    setCompletedDays({});
+    setPoseProgress({});
+    setAssessment(null);
     await saveUser(null);
     await saveToken(null);
+    await saveCompletedDays({});
+    await saveAssessment(null);
   }, []);
 
   const completeSurvey = useCallback(async (survey: SurveyAnswers) => {
@@ -160,7 +220,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         try {
           await api.saveSurvey(token, survey);
         } catch {
-          // saved locally; will retry on next app session
+          console.warn('Survey saved locally; backend sync will retry on next app session');
         }
       }
     }
@@ -193,10 +253,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const submitFinalTestResult = useCallback(async (accuracy: number) => {
+    const token = await loadToken();
+    if (!token) return;
+    try {
+      await api.submitFinalTestResult(token, {
+        predicted_pose_name: null,
+        accuracy_score: Math.round(accuracy),
+        joint_feedback: null,
+      });
+      await refreshProgress();
+    } catch (error) {
+      console.warn('Unable to submit final assessment result', error);
+    }
+  }, [refreshProgress]);
+
   const completeAssessment = useCallback(async (result: AssessmentResult) => {
     setAssessment(result);
     await saveAssessment(result);
-  }, []);
+    await submitFinalTestResult(result.score);
+  }, [submitFinalTestResult]);
 
   const markPoseCompletion = useCallback((dayId: number, count: number) => {
     setPoseProgress((prev) => ({
@@ -205,10 +281,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const getPoseRules = useCallback((clientId: string) => {
+    const key = clientId.toLowerCase().replace(/_/g, '-');
+    const pose = poses.find((item) =>
+      item.client_id === clientId ||
+      item.pose_name === clientId ||
+      String(item.id) === clientId ||
+      item.client_id?.toLowerCase() === key ||
+      item.pose_name.toLowerCase() === key,
+    );
+    return poseRulesFromApiPose(pose) ?? undefined;
+  }, [poses]);
+
+  const recordPoseAttempt = useCallback(async (
+    dayId: number,
+    poseId: string,
+    accuracy: number,
+    timeSeconds: number,
+  ) => {
+    const token = await loadToken();
+    if (!token) return;
+    try {
+      await api.submitPracticeAttempt(token, {
+        pose_id: poseId,
+        day_number: dayId,
+        accuracy_score: Math.round(accuracy),
+        joint_feedback: { held_seconds: String(Math.round(timeSeconds)) },
+      });
+      await refreshProgress();
+    } catch (error) {
+      console.warn('Unable to save practice attempt', error);
+    }
+  }, [refreshProgress]);
+
   const resetProgress = useCallback(async () => {
     setCompletedDays({});
     setPoseProgress({});
     setAssessment(null);
+    setServerProgress(null);
     await saveCompletedDays({});
     await saveAssessment(null);
   }, []);
@@ -241,9 +351,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       completedDays,
       poseProgress,
       assessment,
+      serverProgress,
+      poses,
       nextDayId,
       isProgramComplete,
-      isAssessmentUnlocked: isProgramComplete,
+      isAssessmentUnlocked: serverProgress?.final_test_unlocked ?? isProgramComplete,
       completedDayCount: completedDayCount,
       totalPracticeSeconds,
       totalSessions,
@@ -256,6 +368,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       completeDay,
       markPoseCompletion,
       completeAssessment,
+      getPoseRules,
+      refreshProgress,
+      recordPoseAttempt,
+      submitFinalTestResult,
       resetProgress,
     };
   }, [
@@ -264,6 +380,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     completedDays,
     poseProgress,
     assessment,
+    serverProgress,
+    poses,
     completedDayCount,
     signIn,
     signOut,
@@ -272,6 +390,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     completeDay,
     markPoseCompletion,
     completeAssessment,
+    getPoseRules,
+    refreshProgress,
+    recordPoseAttempt,
+    submitFinalTestResult,
     resetProgress,
   ]);
 

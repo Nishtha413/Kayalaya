@@ -40,6 +40,9 @@ yarn-error.*
 .claude/
 .opencode/
 
+# editors
+.idea/
+
 # typescript
 *.tsbuildinfo
 

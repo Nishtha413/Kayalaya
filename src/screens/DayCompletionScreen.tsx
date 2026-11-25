@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { useNavigation, useRoute, CommonActions, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types';
@@ -18,14 +18,18 @@ export default function DayCompletionScreen() {
   const { colors } = useTheme();
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
-  const { dayId } = route.params;
+  const { dayId, results = [], timeSeconds } = route.params;
   const { completedDays, completeDay, isProgramComplete } = useApp();
   const recorded = useRef(false);
   const day = dayById(dayId);
   const poses = posesForDay(dayId);
   const result = completedDays[dayId];
-  const accuracy = result?.accuracy ?? 85;
-  const time = result?.timeSeconds ?? poses.length * 120;
+  const derivedAccuracy = results.length
+    ? Math.round(results.reduce((sum, item) => sum + item.accuracy, 0) / results.length)
+    : 0;
+  const derivedTime = timeSeconds ?? results.reduce((sum, item) => sum + item.timeSeconds, 0);
+  const accuracy = result?.accuracy ?? derivedAccuracy;
+  const time = result?.timeSeconds ?? derivedTime;
   const mins = Math.floor(time / 60);
   const secs = time % 60;
   const scale = useRef(new Animated.Value(0)).current;
@@ -33,12 +37,16 @@ export default function DayCompletionScreen() {
   useEffect(() => {
     if (!recorded.current && !completedDays[dayId]) {
       recorded.current = true;
-      completeDay(dayId, Math.round(78 + Math.random() * 16), poses.length * 100);
+      void completeDay(dayId, derivedAccuracy, derivedTime);
     }
-  }, [completedDays, completeDay, dayId, poses.length]);
+  }, [completedDays, completeDay, dayId, derivedAccuracy, derivedTime]);
 
   useEffect(() => {
-    Animated.spring(scale, { toValue: 1, friction: 5, useNativeDriver: true }).start();
+    Animated.spring(scale, {
+      toValue: 1,
+      friction: 5,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
   }, [scale]);
 
   const goHome = () => {
