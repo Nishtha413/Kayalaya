@@ -22,7 +22,7 @@ app/
   api/
     deps.py                 → get_current_user (JWT) dependency
     routes/
-      auth.py                 → /api/auth/register, /api/auth/login
+      auth.py                 → /api/auth/register, /login, /token, /me (GET/DELETE)
       poses.py                 → /api/poses, /api/poses/{id}
       program.py               → /api/program/days
       progress.py                → /api/progress/status, /practice-attempt, /final-test-result, /history
@@ -37,7 +37,7 @@ app/
 docker compose up --build
 ```
 
-This starts both PostgreSQL and the API. Visit http://localhost:8000/docs for interactive Swagger docs.
+This starts both PostgreSQL and the API. Visit http://localhost:8001/docs for interactive Swagger docs.
 
 ## Option B: Run locally without Docker
 
@@ -47,12 +47,12 @@ This starts both PostgreSQL and the API. Visit http://localhost:8000/docs for in
    source venv/bin/activate  # Windows: venv\Scripts\activate
    pip install -r requirements.txt
    ```
-2. Make sure PostgreSQL is running locally and matches the connection details in `.env` (copy `.env.example` → `.env` and edit as needed).
-3. Run the server:
+2. Make sure your database is running or set `DATABASE_URL` (e.g. SQLite for dev: `$env:DATABASE_URL="sqlite:///./dev.db"`).
+3. Run the server (on port 8001 to match the mobile app):
    ```bash
-   uvicorn app.main:app --reload
+   uvicorn app.main:app --reload --port 8001
    ```
-4. Visit http://localhost:8000/docs.
+4. Visit http://localhost:8001/docs.
 
 ## Database Migrations (Alembic)
 
@@ -116,12 +116,14 @@ The test suite covers:
 
 ## What's already implemented
 
-- User registration and login with JWT auth
+- User registration, login, profile fetch (`GET /api/auth/me`), and account deletion (`DELETE /api/auth/me`)
+- OAuth2 form token endpoint (`POST /api/auth/token`) for Swagger UI Authorize
+- Pydantic validation (minimum password length $\ge 6$, score bounds $0.0 \le score \le 100.0$)
 - Pose and ReferenceAngle models matching `reference_angle_contract.json`
 - Seed script and seed data
 - Practice attempt and final test submission, with final test gated on program completion
-- Progress status and history endpoints for the dashboard
-- Automated pytest test suite (26 tests)
+- Progress status and reverse-chronological history endpoints with pagination
+- Automated pytest test suite (33 tests)
 - Alembic migrations (`alembic upgrade head`)
 
 ## Not implemented yet

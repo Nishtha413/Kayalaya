@@ -133,11 +133,28 @@ def submit_final_test_result(
 
 @router.get("/history")
 def get_progress_history(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    limit: int = 100,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """Feeds the Progress Dashboard: practice history plus final test results if completed."""
-    practice = db.query(PracticeAttempt).filter(PracticeAttempt.user_id == current_user.id).all()
-    final_tests = db.query(FinalTestResult).filter(FinalTestResult.user_id == current_user.id).all()
+    """Feeds the Progress Dashboard: practice history plus final test results ordered by latest first."""
+    practice = (
+        db.query(PracticeAttempt)
+        .filter(PracticeAttempt.user_id == current_user.id)
+        .order_by(PracticeAttempt.created_at.desc(), PracticeAttempt.id.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    final_tests = (
+        db.query(FinalTestResult)
+        .filter(FinalTestResult.user_id == current_user.id)
+        .order_by(FinalTestResult.created_at.desc(), FinalTestResult.id.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
     return {
         "practice_attempts": [
             {
