@@ -36,6 +36,11 @@
           "cameraPermission": "Allow Kayalaya to access your camera for pose detection."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d9b3572a-b717-4ec5-9325-e8ddb9f167ad"
+      }
+    }
   }
 }
